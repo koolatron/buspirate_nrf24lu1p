@@ -149,7 +149,7 @@ $port->write( $status_byte );               # Write status
 usleep ( 200000 );
 die "Unable to set status." if ( $port->read( 1 ) ne "\x01" );
 
-$port->write( "\x11" );                     # Bulk SPI transfer: 4 bytes
+$port->write( "\x11" );                     # Bulk SPI transfer: 2 bytes
 usleep ( 20000 );
 die "Failed bulk read/write." if ( $port->read( 1 ) ne "\x01" );
 
@@ -189,13 +189,13 @@ usleep( 20000 );
 
 $port->read( 1 );                           # Dummy (command)
 
-$status_byte |=  BP_CS;                     #CS high
+$status_byte |=  BP_CS;                     # CS high
 
 $port->write( $status_byte );               # Write status
 usleep ( 200000 );
 die "Unable to set status." if ( $port->read( 1 ) ne "\x01" );
 
-
+# Spin until device is finished erasing
 do {
     $status_byte &= ~BP_CS;                 # CS low
 
@@ -203,7 +203,7 @@ do {
     usleep ( 200000 );
     die "Unable to set status." if ( $port->read( 1 ) ne "\x01" );
 
-    $port->write( "\x11" );                 # Bulk SPI transfer: 4 bytes
+    $port->write( "\x11" );                 # Bulk SPI transfer: 2 bytes
     usleep ( 20000 );
     die "Failed bulk read/write." if ( $port->read( 1 ) ne "\x01" );
 
@@ -215,8 +215,6 @@ do {
     $return = $port->read( 1 );             # Dummy (command)
     $return = $port->read( 1 );             # Read reply
 
-    say "Status: " . _pretty_hex( $return );
-
     $status_byte |=  BP_CS;                 # CS high
 
     $port->write( $status_byte );           # Write status
@@ -225,7 +223,7 @@ do {
 } while ( $return ne "\x00" );
 
 
-# === Enable writing ===
+# === Set write enable again ===
 say "Enabling programming...";
 
 $status_byte &= ~BP_CS;                     # CS low
@@ -259,7 +257,7 @@ $port->write( $status_byte );               # Write status
 usleep ( 200000 );
 die "Unable to set status." if ( $port->read( 1 ) ne "\x01" );
 
-$port->write( "\x11" );                     # Bulk SPI transfer: 4 bytes
+$port->write( "\x11" );                     # Bulk SPI transfer: 2 bytes
 usleep ( 20000 );
 die "Failed bulk read/write." if ( $port->read( 1 ) ne "\x01" );
 
@@ -318,20 +316,20 @@ while ( <INPUT> ) {
     die "Unable to set status." if ( $port->read( 1 ) ne "\x01" );
 
 
-    # === Write 1 byte ===
+    # === Program 2 bytes ===
     $status_byte &= ~BP_CS;                 # CS low
 
     $port->write( $status_byte );           # Write status
     usleep ( 20000 );
     die "Unable to set status." if ( $port->read( 1 ) ne "\x01" );
 
-    $port->write( "\x14" );                 # Bulk SPI transfer: 4 bytes
+    $port->write( "\x14" );                 # Bulk SPI transfer: 5 bytes
     usleep ( 20000 );
     die "Failed bulk read/write." if ( $port->read( 1 ) ne "\x01" );
 
     $port->write( PROGRAM );                # Bulk 0: command
-    $port->write( pack( "S>", $addr ) );     # Bulk 1, 2: address
-    $port->write( $data );                  # Bulk 3: data
+    $port->write( pack( "S>", $addr ) );    # Bulk 1, 2: address
+    $port->write( $data );                  # Bulk 3, 4: data
 
     say unpack("H*", pack( "S>", $addr) ) . " : " . unpack("H*", $data);
 
@@ -346,8 +344,6 @@ while ( <INPUT> ) {
     die "Unable to set status." if ( $port->read( 1 ) ne "\x01" );
 
     $addr += 2;
-
-    #print STDOUT ".";
 }
 
 print STDOUT "\n";
@@ -373,13 +369,12 @@ die "Unable to set status." if ( $port->read( 1 ) ne "\x01" );
 
 
 # Helper functions
-
 sub _pretty_hex {
     my $return = shift;
 
     $return = unpack( "H*", $return );
     ($return = $return) =~ s/(....)/$1 /g;
-    ($return = $return) =~ s/(.){40}/$1\n/g;
+    ($return = $return) =~ s/(?=.{41})(.{40})/$1\n/g;    
 
     return $return;
 }
