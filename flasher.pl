@@ -51,12 +51,18 @@ my $port;
 my $time = 500;
 my $status_byte;
 my $return;
+my $erase = 1;
 
 if (!&GetOptions(\%opts,
     'input=s',
     'device=s',
+    'no-erase',
 ) || ( !$opts{input} && !$opts{device} ) ) {
     die "Please specify both -input <input_file.bin> and -device <Bus Pirate devnode>";
+}
+
+if(exists $opts('no-erase')) { 
+    $erase = 0;
 }
 
 $port = new Device::SerialPort( $opts{device} );
@@ -172,55 +178,59 @@ die "Unable to set status." if ( $port->read( 1 ) ne "\x01" );
 
 
 # === Erase chip ===
-say "Erasing chip...";
-
-$status_byte &= ~BP_CS;                     # CS low
-
-$port->write( $status_byte );               # Write status
-usleep ( 200000 );
-die "Unable to set status." if ( $port->read( 1 ) ne "\x01" );
-
-$port->write( "\x10" );                     # Bulk SPI transfer: 1 byte
-usleep ( 20000 );
-die "Failed bulk read/write." if ( $port->read( 1 ) ne "\x01" );
-
-$port->write( ERASE_ALL );                  # Bulk 0: command
-usleep( 20000 );
-
-$port->read( 1 );                           # Dummy (command)
-
-$status_byte |=  BP_CS;                     # CS high
-
-$port->write( $status_byte );               # Write status
-usleep ( 200000 );
-die "Unable to set status." if ( $port->read( 1 ) ne "\x01" );
-
-# Spin until device is finished erasing
-do {
-    $status_byte &= ~BP_CS;                 # CS low
-
-    $port->write( $status_byte );           # Write status
+if($erase == 1) {
+    say "Erasing chip...";
+    
+    $status_byte &= ~BP_CS;                     # CS low
+    
+    $port->write( $status_byte );               # Write status
     usleep ( 200000 );
     die "Unable to set status." if ( $port->read( 1 ) ne "\x01" );
-
-    $port->write( "\x11" );                 # Bulk SPI transfer: 2 bytes
+    
+    $port->write( "\x10" );                     # Bulk SPI transfer: 1 byte
     usleep ( 20000 );
     die "Failed bulk read/write." if ( $port->read( 1 ) ne "\x01" );
-
-    $port->write( RDSR );                   # Bulk 0: command
-    $port->write( "\x00" );                 # Bulk 1: dummy
-
+    
+    $port->write( ERASE_ALL );                  # Bulk 0: command
     usleep( 20000 );
-
-    $return = $port->read( 1 );             # Dummy (command)
-    $return = $port->read( 1 );             # Read reply
-
-    $status_byte |=  BP_CS;                 # CS high
-
-    $port->write( $status_byte );           # Write status
+    
+    $port->read( 1 );                           # Dummy (command)
+    
+    $status_byte |=  BP_CS;                     # CS high
+    
+    $port->write( $status_byte );               # Write status
     usleep ( 200000 );
     die "Unable to set status." if ( $port->read( 1 ) ne "\x01" );
-} while ( $return ne "\x00" );
+    
+    # Spin until device is finished erasing
+    do {
+        $status_byte &= ~BP_CS;                 # CS low
+    
+        $port->write( $status_byte );           # Write status
+        usleep ( 200000 );
+        die "Unable to set status." if ( $port->read( 1 ) ne "\x01" );
+    
+        $port->write( "\x11" );                 # Bulk SPI transfer: 2 bytes
+        usleep ( 20000 );
+        die "Failed bulk read/write." if ( $port->read( 1 ) ne "\x01" );
+    
+        $port->write( RDSR );                   # Bulk 0: command
+        $port->write( "\x00" );                 # Bulk 1: dummy
+    
+        usleep( 20000 );
+    
+        $return = $port->read( 1 );             # Dummy (command)
+        $return = $port->read( 1 );             # Read reply
+    
+        $status_byte |=  BP_CS;                 # CS high
+    
+        $port->write( $status_byte );           # Write status
+        usleep ( 200000 );
+        die "Unable to set status." if ( $port->read( 1 ) ne "\x01" );
+    } while ( $return ne "\x00" );
+} else {
+    say "Skip erase...";
+}
 
 
 # === Set write enable again ===
